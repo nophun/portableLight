@@ -5,6 +5,7 @@
 #include <Update.h>
 #include "html.h"
 #include "rotary.h"
+#include "ledCtrl.h"
 
 String host = "esp32";
 String ssid = "ESP_AP";
@@ -19,10 +20,10 @@ unsigned int rot_clk_pin = 7U;
 static constexpr unsigned int led_ch = 0U;
 static constexpr unsigned int led_freq = 20000U;
 static constexpr unsigned int led_pwm_bits = 8U;
-static constexpr unsigned int brightness = {16};
+unsigned int brightness = {1 << (led_pwm_bits / 2)};
 bool update_mode = {false};
 
-LedCtrl LED{led_ch, brightness, 0.1F}
+LedCtrl LED{led_ch, led_pwm_bits, brightness, 0.1F};
 RotaryEncoder rotary{rot_clk_pin, rot_dat_pin, 10, RotaryMode::FULL_STEP};
 WebServer server{80};
 
@@ -107,7 +108,7 @@ void setup(void) {
     setupWIFI();
     setupServer();
   }
-  ledcWrite(led_ch, brightness);
+  LED.init();
 }
 
 void loop(void) {
@@ -117,26 +118,19 @@ void loop(void) {
 
   uint8_t rotary_movement = rotary.update();
   if (rotary_movement == DIR_CW) {
-    if (brightness < 127U) {
+    if (brightness < LED.get_last_step()) {
       brightness <<= 1;
-      if (brightness > 127U) {
-        ledcWrite(led_ch, 255U);
-      } else {
-        ledcWrite(led_ch, brightness);
-      }
+      LED.request_brightness(brightness);
       Serial.println(brightness);
     }
   } else if (rotary_movement == DIR_CCW) {
-    if (brightness > 1U) {
+    if (brightness > LED.get_first_step()) {
       brightness >>= 1;
-      if (brightness == 1) {
-        ledcWrite(led_ch, 0U);
-      } else {
-        ledcWrite(led_ch, brightness);
-      }
+      LED.request_brightness(brightness);
       Serial.println(brightness);
     }
   }
 
+  LED.update();
   delay(1);
 }
